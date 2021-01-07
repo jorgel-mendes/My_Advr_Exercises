@@ -1,0 +1,122 @@
+---
+title: "Chapter 5"
+author: "Jorge Mendes"
+date: "20/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 5
+
+```{r}
+set.seed(1014)
+```
+
+## Quiz 
+
+1 - What is the difference between if and ifelse()?
+
+```{r}
+#Ifelse is vectorized, which may cause recycling issued. If expects one element, if given more it uses the first.
+```
+
+2 - In the following code, what will the value of y be if x is TRUE? What if x is FALSE? What if x is NA?
+
+```{r}
+x <- NA
+y <- if (x) 3
+y
+
+#3, NULL, ERROR.
+```
+3 - What does switch("x", x = , y = 2, z = 3) return?
+
+```{r}
+# 2
+
+switch("x", x = , y = 2, z = 3)
+```
+
+# Choices
+
+## Exercises
+
+1 - What type of vector does each of the following calls to ifelse() return?
+
+Read the documentation and write down the rules in your own words.
+
+```{r}
+ifelse(TRUE, 1, "no") #numeric
+ifelse(FALSE, 1, "no") #character
+ifelse(NA, 1, "no") # NA (logical)
+
+typeof(ifelse(NA, 1, "no"))
+
+#ifelse returns an element of the same length as test and the type of yes or no, or a missing value, if a missing value is provided. If answer has multiple types they will be coerced, preferably to the type of the yes argument.
+```
+
+2 - Why does the following code work?
+
+```{r}
+x <- 1:10
+if (length(x)) "not empty" else "empty"
+#> [1] "not empty"
+
+x <- numeric()
+if (length(x)) "not empty" else "empty"
+#> [1] "empty"
+
+#zero is coerced to FALSE and a non zero number is coerced to TRUE.
+```
+
+# Loops
+
+## Exercises
+
+1 - Why does this code succeed without errors or warnings?
+
+```{r}
+x <- numeric()
+out <- vector("list", length(x))
+for (i in 1:length(x)) {
+  out[i] <- x[i] ^ 2
+}
+out
+
+# 1:length(x) results in 1 0 because `:` also works backwards. This makes the loops run for the first element of x, which doesn't exist and results in an NA in out.
+```
+
+2 - When the following code is evaluated, what can you say about the vector being iterated?
+
+```{r}
+xs <- c(1, 2, 3)
+tracemem(xs)
+for (x in xs) {
+  xs <- c(xs, x * 2)
+  print(tracemem(xs))
+}
+xs
+print(tracemem(xs))
+#> [1] 1 2 3 2 4 6
+
+#the vector is doubled and iteration is happening on a copy of xs made when entered on the loop.
+```
+
+
+3 - What does the following code tell you about when the index is updated?
+
+```{r}
+for (i in 1:3) {
+  i <- i * 2
+  print(i) 
+}
+#> [1] 2
+#> [1] 4
+#> [1] 6
+
+#index is assigned in the beggining of each loop.
+```
+

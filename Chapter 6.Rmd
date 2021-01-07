@@ -1,0 +1,527 @@
+---
+title: "Chapter 6"
+author: "Jorge Mendes"
+date: "20/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 6
+
+```{r}
+set.seed(1014)
+```
+
+## Quiz 
+
+1 - What are the three components of a function?
+
+```{r}
+#Arguments, body and environment
+```
+
+2 - What does the following code return?
+
+```{r}
+x <- 10
+f1 <- function(x) {
+  function() {
+    x + 10
+  }
+}
+f1(1)()
+
+#11
+```
+3 - How would you usually write this code?
+
+```{r}
+`+`(1, `*`(2, 3))
+
+1 + 2*3
+```
+
+4 - How could you make this call easier to read?
+
+```{r}
+mean(, TRUE, x = c(1:10, NA))
+
+mean(c(1:10, NA), na.rm = TRUE)
+```
+
+5 - Does the following code throw an error when executed? Why or why not?
+
+```{r}
+f2 <- function(a, b) {
+  a * 10
+}
+
+f2(10, stop("This is an error!"))
+
+# No. b is never used so it's never evaluated.
+```
+
+6 - What is an infix function? How do you write it? What’s a replacement function? How do you write it?
+
+```{r}
+# infix function it's a function that goes in the middle of the call like some base R functions as `+`. A function needs to start and end with % to be defined as a infix function.
+
+# Replacement function it's a function that is called in the left side of an assignment and change something of the argument given. A function needs to be of the format xxx<- to be defined as a replacement function.
+```
+
+7 - How do you ensure that cleanup action occurs regardless of how a function exits?
+
+```{r}
+#using on.exit.
+```
+
+# Function fundamentals
+
+## Exercises
+
+1 - Given a name, like "mean", match.fun() lets you find a function. Given a function, can you find its name? Why doesn’t that make sense in R?
+
+```{r}
+?match.fun
+
+#No. It doesn't make sense because another function would be created, one bounded to no name.
+```
+
+2 - It’s possible (although typically not useful) to call an anonymous function. Which of the two approaches below is correct? Why?
+
+```{r}
+function(x) 3()
+#> function(x) 3()
+(function(x) 3)()
+#> [1] 3
+
+#the second is correct. It creates a function that returns 3 and calls it.
+```
+
+3 - A good rule of thumb is that an anonymous function should fit on one line and shouldn’t need to use {}. Review your code. Where could you have used an anonymous function instead of a named function? Where should you have used a named function instead of an anonymous function?
+
+```{r}
+#Small operations that happen only once could benefit from an anonymous function. Large or repeated code should be used with named functions. Named functions also add clarity.
+```
+
+
+4 - What function allows you to tell if an object is a function? What function allows you to tell if a function is a primitive function?
+
+```{r}
+?is.function #tests for a function
+?is.primitive #tests for a primitive function
+```
+
+5 - This code makes a list of all functions in the base package.
+
+```{r}
+objs <- mget(ls("package:base", all = TRUE), inherits = TRUE)
+funs <- Filter(is.function, objs)
+```
+
+Use it to answer the following questions:
+
+a. Which base function has the most arguments?
+
+```{r}
+fun_max_args <- which.max(lapply(names(funs), function(x) length(formals(x))))
+names(funs)[fun_max_args]
+```
+
+b. How many base functions have no arguments? What’s special about those functions?
+
+```{r}
+funs_zero <- lapply(names(funs), function(x) length(formals(x))) == 0
+sum(funs_zero)
+#248 have no arguments
+
+funs[funs_zero]
+#usually primitive functions. infix functions are common too
+```
+
+
+c. How could you adapt the code to find all primitive functions?
+
+```{r}
+objs <- mget(ls("package:base", all = TRUE), inherits = TRUE)
+funs <- Filter(is.primitive, objs)
+```
+
+
+6 - What are the three important components of a function?
+
+```{r}
+#formals (arguments), body (code) and environment.
+```
+
+7 - When does printing a function not show the environment it was created in?
+
+```{r}
+#when the function is defined in the global environment.
+```
+
+# Lexical scoping
+
+## Exercises
+
+1 - What does the following code return? Why? Describe how each of the three c’s is interpreted.
+
+```{r}
+c <- 10
+c(c = c)
+
+#first c is an object in the global environment. second c is a functions `c`. third c is an argument, it will be an attribute of the vector and the last c will be searched in the global environment and finally pointed to the c defined as 10.
+```
+
+2 - What are the four principles that govern how R looks for values?
+
+```{r}
+#Name masking - values inside of a function mask names outside
+#functions vs variables - functions are objects but when there's a function and a non function with the same name how they are searched changes
+#fresh start - every time a function is run, a new environment is created
+#dynamic lookup - r look for for values when the function is run
+```
+
+3 - What does the following function return? Make a prediction before running the code yourself.
+
+```{r}
+f <- function(x) {
+  f <- function(x) {
+    f <- function() {
+      x ^ 2
+    }
+    f() + 1
+  }
+  f(x) * 2
+}
+f(10)
+
+#202
+```
+
+# Lazy evaluation
+
+## Exercises
+
+1 - What important property of && makes x_ok() work?
+
+```{r}
+x_ok <- function(x) {
+  !is.null(x) && length(x) == 1 && x > 0
+}
+
+x_ok(NULL)
+#> [1] FALSE
+x_ok(1)
+#> [1] TRUE
+x_ok(1:3)
+#> [1] FALSE
+
+#With && only the first element is used. I think evaluation is lazy too and stops when the first FALSE is computed.
+```
+
+What is different with this code? Why is this behaviour undesirable here?
+
+```{r}
+x_ok <- function(x) {
+  !is.null(x) & length(x) == 1 & x > 0
+}
+
+x_ok(NULL)
+#> logical(0)
+x_ok(1)
+#> [1] TRUE
+x_ok(1:3)
+#> [1] FALSE FALSE FALSE
+
+#All elements are calculated when they shouldn't. Evaluation is also not done lazily.
+```
+
+2 - What does this function return? Why? Which principle does it illustrate?
+
+```{r}
+f2 <- function(x = z) {
+  z <- 100
+  x
+}
+f2()
+
+#lazy evaluation for default arguments is illustrated.
+```
+3 - What does this function return? Why? Which principle does it illustrate?
+
+```{r}
+y <- 10
+f1 <- function(x = {y <- 1; 2}, y = 0) {
+  c(x, y)
+}
+f1()
+y
+
+#c(2, 1) e y = 10
+#it shows where default arguments are evaluated. y <- 1 is evaluated inside the function when x is called.
+```
+
+4 - In hist(), the default value of xlim is range(breaks), the default value for breaks is "Sturges", and
+
+```{r}
+range("Sturges")
+#> [1] "Sturges" "Sturges"
+```
+Explain how hist() works to get a correct xlim value.
+
+```{r}
+?hist
+
+#First breaks is calculated, by giver values or by some internal mechanism like Sturges, then xlim is calculated later. It's evaluated after breaks.
+```
+
+5 - Explain why this function works. Why is it confusing?
+
+```{r}
+show_time <- function(x = stop("Error!")) {
+  stop <- function(...) Sys.time()
+  print(x)
+}
+show_time()
+#> [1] "2020-08-17 20:02:53 UTC"
+
+#x is called after a function named stop is created inside the function environment. This function masks base's stop, which is confusing.
+```
+
+6 - How many arguments are required when calling library()?
+
+```{r}
+?library
+str(formals(library))
+
+#library has 13 arguments but can be called with none.
+```
+
+# ...
+
+## Exercises
+
+1 - Explain the following results:
+
+```{r}
+sum(1, 2, 3) #evaluation is made with ... elements
+#> [1] 6
+mean(1, 2, 3) #evaluation is made with 1st arguments, the others are never used
+#> [1] 1
+
+sum(1, 2, 3, na.omit = TRUE) #TRUE is coerced to 1 and used in the sum
+#> [1] 7
+mean(1, 2, 3, na.omit = TRUE) #only 1st argument is used
+#> [1] 1
+```
+2 - Explain how to find the documentation for the named arguments in the following function call:
+
+```{r}
+plot(1:10, col = "red", pch = 20, xlab = "x", col.lab = "blue")
+
+?plot
+?plot.default #is better
+?par #even better
+```
+
+3 - Why does plot(1:10, col = "red") only colour the points, not the axes or labels? Read the source code of plot.default() to find out.
+
+```{r}
+#col only works for lines and points. axis and labels have their own arguments.
+```
+
+# Exiting a function
+
+##Exercises
+
+1 - What does load() return? Why don’t you normally see these values?
+
+```{r}
+?load
+#A vector of the names of the objects created. They return invisibly by default.
+```
+
+2 - What does write.table() return? What would be more useful?
+
+```{r}
+?write.table
+View(write.table)
+
+#It returns a call to a c function which returns NULL. The path and few info of the file could be more useful.
+```
+
+3 - How does the chdir parameter of source() compare to with_dir()? Why might you prefer one to the other?
+
+```{r}
+?source
+?with_dir
+
+#with_dir gives more control choosing the path. I would choose source if the desired working directory is the same of the file, otherwise with_dir.
+```
+
+4 - Write a function that opens a graphics device, runs the supplied code, and closes the graphics device (always, regardless of whether or not the plotting code works).
+
+```{r}
+customized_gd <- function(code){
+  dev.new()
+  on.exit(dev.off(), add = TRUE)
+  
+  code
+}
+
+customized_gd(plot(1:10))
+```
+
+5 - We can use on.exit() to implement a simple version of capture.output().
+
+```{r}
+capture.output2 <- function(code) {
+  temp <- tempfile()
+  on.exit(file.remove(temp), add = TRUE, after = TRUE)
+
+  sink(temp)
+  on.exit(sink(), add = TRUE, after = TRUE)
+
+  force(code)
+  readLines(temp)
+}
+capture.output2(cat("a", "b", "c", sep = "\n"))
+#> [1] "a" "b" "c"
+```
+
+Compare capture.output() to capture.output2(). How do the functions differ? What features have I removed to make the key ideas easier to see? How have I rewritten the key ideas so they’re easier to understand?
+
+```{r}
+?capture.output
+
+View(capture.output)
+
+#compare.output2 makes some behaviors as the only possible. The file for capturing cannot be defined and the type of return is also set. These ideas were written as the only functionality to make the function easier to understand.
+```
+
+# Function forms
+
+## Exercises
+
+1 - Rewrite the following code snippets into prefix form:
+
+```{r}
+1 + 2 + 3
+`+`(`+`(1, 2), 3)
+
+1 + (2 + 3)
+`+`(1, `+`(2, 3))
+
+x <- 1:10
+n <- 1
+
+if (length(x) <= 5) x[[5]] else x[[n]]
+`if`(length(x) <= 5, x[[5]], x[[n]])
+```
+2 - Clarify the following list of odd function calls:
+
+```{r}
+x <- sample(replace = TRUE, 20, x = c(1:10, NA))
+x <- sample(c(1:10, NA), 20, replace = TRUE)
+
+y <- runif(min = 0, max = 1, 20)
+y <- runif(20, 0, 1)
+
+cor(m = "k", y = y, u = "p", x = x)
+cor(x, y,use = 'pairwise.complete.obs', method = 'kendall')
+```
+
+3 - Explain why the following code fails:
+
+```{r}
+modify(get("x"), 1) <- 10
+#> Error: target of assignment expands to non-language object
+
+?modify
+
+#modify is not a replacement function, so asignment can't happen.
+```
+
+4 - Create a replacement function that modifies a random location in a vector.
+
+```{r}
+x <- 1:5
+
+`random_modifier<-` <- function(x, value){
+  x[sample(seq_along(x), 1)] <- value
+  x
+}
+
+random_modifier(x) <- -1
+
+x
+```
+
+5 - Write your own version of + that pastes its inputs together if they are character vectors but behaves as usual otherwise. In other words, make this code work:
+
+```{r}
+1 + 2
+#> [1] 3
+
+"a" + "b"
+#> [1] "ab"
+
+`%+%` <- function(a, b){
+  if(is.character(a) & is.character(b)) paste0(a,b) else a + b
+}
+
+1 %+% 2
+
+"a" %+% "b"
+```
+
+6 - Create a list of all the replacement functions found in the base package. Which ones are primitive functions? (Hint: use apropos().)
+
+```{r}
+replacement_functions <- apropos(".*<-$")
+replacement_functions
+
+replacement_functions[unlist(lapply(replacement_functions, function(x) is.primitive(get(x))))]
+```
+7 - What are valid names for user-created infix functions?
+
+```{r}
+#functions that start and end with %
+```
+
+8 - Create an infix xor() operator.
+
+```{r}
+?xor
+
+`%xor%` <- function(a, b){
+  xor(a, b)
+}
+
+x <- 1:3
+y <- 3:1
+
+xor(x < 3, y == 3)
+(x < 3) %xor% (y == 3)
+```
+
+9 - Create infix versions of the set functions intersect(), union(), and setdiff(). You might call them %n%, %u%, and %/% to match conventions from mathematics.
+
+```{r}
+x <- 1:3
+y <- 5:1
+
+`%n%` <- function(a, b) intersect(a, b)
+identical(intersect(x, y), x %n% y)
+
+`%u%` <- function(a, b) union(a, b)
+identical(union(x, y), x %u% y)
+
+`%/%` <- function(a, b) setdiff(a, b)
+identical(setdiff(x, y), x %/% y)
+```
+

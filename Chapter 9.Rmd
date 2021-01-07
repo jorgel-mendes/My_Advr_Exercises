@@ -1,0 +1,343 @@
+---
+title: "Chapter 9"
+author: "Jorge Mendes"
+date: "20/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 9
+
+# My first functional: map()
+
+## Exercises
+
+1 - Use as_mapper() to explore how purrr generates anonymous functions for the integer, character, and list helpers. What helper allows you to extract attributes? Read the documentation to find out.
+
+
+```{r}
+library(purrr)
+
+as_mapper(1) #uses pluck
+as_mapper("a")
+as_mapper(list(1, 2, "a")) 
+#all of them uses pluck
+
+View(as_mapper)
+methods(as_mapper)
+
+?as_mapper
+
+# attr_getter can be used to get attributes
+```
+
+2 - map(1:3, ~ runif(2)) is a useful pattern for generating random numbers, but map(1:3, runif(2)) is not. Why not? Can you explain why it returns the result that it does?
+
+```{r}
+map(1:3, ~ runif(2)) #creates an anonymous function that runs for each element in the mapped vector
+as_mapper(~runif(2))
+
+map(1:3, runif(2)) #tries to extract elements because the numeric triggers as_mapper numeric method
+as_mapper(runif(2))
+```
+
+3 - Use the appropriate map() function to:
+
+a. Compute the standard deviation of every column in a numeric data frame.
+
+```{r}
+df <- data.frame(x = c(1, 1),
+                 y = c(1, 2),
+                 z = c(1, 10))
+
+map_dbl(df, sd)
+```
+
+
+b. Compute the standard deviation of every numeric column in a mixed data frame. (Hint: you’ll need to do it in two steps.)
+
+```{r}
+df <- data.frame(x = c(1, 1),
+                 y = c("1", "2"),
+                 z = c(1, 10))
+
+map_dbl(df[map_lgl(df, is.numeric)], sd)
+```
+
+
+c. Compute the number of levels for every factor in a data frame.
+
+```{r}
+df <- data.frame(x = factor(c("a", "b")),
+                 y = factor(c("a", "a")),
+                 z = factor(c("b", "b")))
+
+map_dbl(df, ~length(unique(.x)))
+```
+
+4 - The following code simulates the performance of a t-test for non-normal data. Extract the p-value from each test, then visualise.
+
+```{r}
+trials <- map(1:100, ~ t.test(rpois(10, 10), rpois(7, 10)))
+
+trials_pvalue <- map_dbl(trials, "p.value")
+
+hist(trials_pvalue)
+```
+
+5 - The following code uses a map nested inside another map to apply a function to every element of a nested list. Why does it fail, and what do you need to do to make it work?
+
+```{r}
+x <- list(
+  list(1, c(3, 9)),
+  list(c(3, 6), 7, c(4, 7, 6))
+)
+
+triple <- function(x) x * 3
+map(x, map, .f = triple)
+#> Error in .f(.x[[i]], ...): unused argument (function (.x, .f, ...)
+#> {
+#> .f <- as_mapper(.f, ...)
+#> .Call(map_impl, environment(), ".x", ".f", "list")
+#> })
+
+#map is passed as an argument to the triple function, which does not make sense.
+
+triple <- function(x) map(x, ~.x * 3)
+map(x, triple)
+```
+
+6 - Use map() to fit linear models to the mtcars dataset using the formulas stored in this list:
+
+```{r}
+formulas <- list(
+  mpg ~ disp,
+  mpg ~ I(1 / disp),
+  mpg ~ disp + wt,
+  mpg ~ I(1 / disp) + wt
+)
+
+models_mtcars <- map(formulas, ~lm(.x, data = mtcars))
+models_mtcars
+
+map(models_mtcars, formula)
+```
+
+7 - Fit the model mpg ~ disp to each of the bootstrap replicates of mtcars in the list below, then extract the  R2 of the model fit (Hint: you can compute the R2 with summary().)
+
+```{r}
+bootstrap <- function(df) {
+  df[sample(nrow(df), replace = TRUE), , drop = FALSE]
+}
+
+bootstraps <- map(1:10, ~ bootstrap(mtcars))
+
+get_R2 <- function(x){
+  summary(lm(mpg~disp, data = x))$r.squared
+}
+
+map_dbl(bootstraps, get_R2)
+```
+
+# Map variants
+
+## Exercises
+
+1 - Explain the results of modify(mtcars, 1).
+
+```{r}
+modify(mtcars, 1)
+
+a <- modify(mtcars, 1)
+identical(a, mtcars)
+?modify
+
+str(a)
+str(mtcars)
+#it will pluck the first element of each column and repeat it, since modify preserves the dimensions.
+```
+
+2 - Rewrite the following code to use iwalk() instead of walk2(). What are the advantages and disadvantages?
+
+```{r}
+temp <- tempfile()
+dir.create(temp)
+
+cyls <- split(mtcars, mtcars$cyl)
+paths <- file.path(temp, paste0("cyl-", names(cyls), ".csv"))
+walk2(cyls, paths, write.csv)
+
+dir(temp)
+
+
+
+temp2 <- tempfile()
+dir.create(temp2)
+
+paths <- file.path(temp2, paste0("cyl-", names(cyls), ".csv"))
+names(cyls) <- paths
+iwalk(cyls, write.csv)
+
+dir(temp2)
+
+#the code is less clear and we lose the group names in the process. But now there's an object clearly named as the file it creates.
+```
+
+3 - Explain how the following code transforms a data frame using functions stored in a list.
+
+```{r}
+trans <- list(
+  disp = function(x) x * 0.0163871,
+  am = function(x) factor(x, labels = c("auto", "manual"))
+)
+
+nm <- names(trans)
+mtcars[nm] <- map2(trans, mtcars[nm], function(f, var) f(var))
+
+#map is run with a function factory that run on the list trans and the selected columns. It creates the function in the list and applies it to a column.
+```
+
+Compare and contrast the map2() approach to this map() approach:
+
+```{r}
+mtcars[vars] <- map(vars, ~ trans[[.x]](mtcars[[.x]]))
+
+#the map approach does the same, but it iterates over the names of the columns. Which are the same names of the list.
+```
+
+4 - What does write.csv() return? i.e. what happens if you use it with map2() instead of walk2()?
+
+```{r}
+?write.csv
+
+temp <- tempfile()
+dir.create(temp)
+
+cyls <- split(mtcars, mtcars$cyl)
+paths <- file.path(temp, paste0("cyl-", names(cyls), ".csv"))
+map2(cyls, paths, write.csv) #returns NULL and object names
+
+dir(temp)
+
+```
+
+# Predicate functionals
+
+## Exercises
+
+1 - Why isn’t is.na() a predicate function? What base R function is closest to being a predicate version of is.na()?
+
+```{r}
+#is.na returns a value for each element and not just one value. anyNA is the closest to being a predicare version, being any(is.na(.))
+```
+
+2 - simple_reduce() has a problem when x is length 0 or length 1. Describe the source of the problem and how you might go about fixing it.
+
+```{r}
+simple_reduce <- function(x, f) {
+  out <- x[[1]]
+  for (i in seq(2, length(x))) {
+    out <- f(out, x[[i]])
+  }
+  out
+}
+
+simple_reduce(c(1, 2), sum)
+simple_reduce(1, sum)
+
+simple_reduce <- function(x, f) {
+  if(length(x) <= 1) return(x)
+  
+  out <- x[[1]]
+  for (i in seq(2, length(x))) {
+    out <- f(out, x[[i]])
+  }
+  out
+}
+
+simple_reduce(c(1, 2), sum)
+simple_reduce(1, sum)
+
+```
+
+3 - Implement the span() function from Haskell: given a list x and a predicate function f, span(x, f) returns the location of the longest sequential run of elements where the predicate is true. (Hint: you might find rle() helpful.)
+
+```{r}
+span <- function(x, f){
+  rle_result <- map(keep(x, f), rle)
+  rle_result
+}
+
+
+span(list(c(1, 2, 3), c(4, 4, 5), c(3, 2, 2 ,2)), function(x) all(x > 1))
+
+##seee in results since I don't understand what span does
+```
+
+4 - Implement arg_max(). It should take a function and a vector of inputs, and return the elements of the input where the function returns the highest value. For example, arg_max(-10:5, function(x) x ^ 2) should return -10. arg_max(-5:5, function(x) x ^ 2) should return c(-5, 5). Also implement the matching arg_min() function.
+
+```{r}
+arg_max <- function(x, f){
+  mapped_values <- map_dbl(x, f)
+  x[mapped_values == max(mapped_values)]
+}
+
+arg_max(-10:5, function(x) x ^ 2)
+arg_max(-5:5, function(x) x ^ 2)
+
+arg_min <- function(x, f){
+  mapped_values <- map_dbl(x, f)
+  x[mapped_values == min(mapped_values)]
+}
+
+arg_min(-10:5, function(x) x ^ 2)
+arg_min(-5:5, function(x) x ^ 2)
+```
+
+5 - The function below scales a vector so it falls in the range [0, 1]. How would you apply it to every column of a data frame? How would you apply it to every numeric column in a data frame?
+
+```{r}
+scale01 <- function(x) {
+  rng <- range(x, na.rm = TRUE)
+  (x - rng[1]) / (rng[2] - rng[1])
+}
+
+apply(mtcars, 2, scale01) #turns into matrix
+map_dfc(mtcars, scale01) #rownames are lost
+modify(mtcars, scale01) #keeps it as a data.frame
+
+identical(as.data.frame(apply(mtcars, 2, scale01)), modify(mtcars, scale01)) #TRUE
+
+apply(Filter(is.numeric, iris), 2, scale01) #drops numeric variables
+map_if(iris, is.numeric, scale01) #lists
+modify_if(iris, is.numeric, scale01) #great
+```
+
+# Base functionals
+
+## Exercises
+
+1 - How does apply() arrange the output? Read the documentation and perform some experiments.
+
+```{r}
+?apply
+#not the answers but it coerces te object to a matrix
+
+#if each call returns a vector with length greater than one apply will return an array. If n is one it will return a vector or an matrix. If values don't have the same length it returns a list.
+
+#results are coerced to one of the basic vector types. Factor, for example, are coerced to character.
+```
+
+2 - What do eapply() and rapply() do? Does purrr have equivalents?
+
+```{r}
+?eapply
+#apply function over values in an environment and returns them in a list. I think imap could lead to the same result.
+
+?rapply
+#recursive and more flexible version of apply. I think it's modify.
+```
+

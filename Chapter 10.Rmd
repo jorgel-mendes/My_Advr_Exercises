@@ -1,0 +1,294 @@
+---
+title: "Chapter 10"
+author: "Jorge Mendes"
+date: "20/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 10
+
+# Factory Fundamentals
+
+## Exercises
+
+1 - The definition of force() is simple:
+
+```{r}
+force
+#> function (x) 
+#> x
+#> <bytecode: 0x7f5660>
+#> <environment: namespace:base>
+```
+
+Why is it better to force(x) instead of just x?
+
+```{r}
+
+?force
+#Maybe to make it explicit? Documentation doesn't give more clues
+```
+
+2- Base R contains two function factories, approxfun() and ecdf(). Read their documentation and experiment to figure out what the functions do and what they return.
+
+```{r}
+?approxfun
+
+#run in console
+x <- 1:10
+y <- rnorm(10)
+f <- approxfun(x, y)
+plot(x, y, main = "approx(.) and approxfun(.)")
+curve(f(x), 0, 11, col = "green2")
+points(x, y)
+
+#approxfun creates a function that does interpolation
+f
+
+?ecdf
+
+x <- rnorm(12)
+Fn <- ecdf(x)
+Fn     # a *function*
+Fn(x)  # returns the percentiles for x
+#creates an empirical cumulative distribution function
+```
+
+3 - Create a function pick() that takes an index, i, as an argument and returns a function with an argument x that subsets x with i.
+
+```{r}
+pick(1)(x)
+# should be equivalent to
+x[[1]]
+
+pick <- function(i){
+  function(x){
+    x[[i]]
+  }
+}
+
+lapply(mtcars, function(x) pick(5))
+# should be equivalent to
+lapply(mtcars, function(x) x[[5]])
+```
+
+4 - Create a function that creates functions that compute the ith central moment of a numeric vector. You can test it by running the following code:
+
+```{r}
+m1 <- moment(1)
+m2 <- moment(2)
+
+x <- runif(100)
+stopifnot(all.equal(m1(x), 0))
+stopifnot(all.equal(m2(x), var(x) * 99 / 100))
+
+#Me recuso
+```
+
+5 - What happens if you don’t use a closure? Make predictions, then verify with the code below.
+
+```{r}
+i <- 0
+new_counter2 <- function() {
+  i <<- i + 1
+  i
+}
+
+new_counter2()
+i
+#value is changed in the global environment, which means it is accessible outside the function environment.
+i <- 20
+new_counter2()
+```
+
+6 - What happens if you use <- instead of <<-? Make predictions, then verify with the code below.
+
+```{r}
+new_counter3 <- function() {
+  i <- 0
+  function() {
+    i <- i + 1
+    i
+  }
+}
+
+#i won't change
+
+new_counter <- new_counter3()
+new_counter()
+new_counter()
+```
+
+# Graphical factories
+
+## Exercises
+
+1 - Compare and contrast ggplot2::label_bquote() with scales::number_format()
+
+```{r}
+library(ggplot2)
+?ggplot2::label_bquote()
+View(label_bquote)
+
+p <- ggplot(mtcars, aes(wt, mpg)) + geom_point()
+p + facet_grid(vs ~ ., labeller = label_bquote(alpha ^ .(vs)))
+
+label_bquote(alpha ^ .(vs)) 
+
+?facet_grid
+?scales::number_format
+
+#purpose is different, label_bquote is for mathematical expressions in facet labels, number_format is for scales in ggplot2. Thus the input and output for them is also different. label_quote returns a labeller object and number_format a function.
+```
+
+# Statistical Factories
+
+## Exercises
+
+1 - In boot_model(), why don’t I need to force the evaluation of df or model?
+
+```{r}
+boot_model <- function(df, formula) {
+  mod <- lm(formula, data = df)
+  fitted <- unname(fitted(mod))
+  resid <- unname(resid(mod))
+  rm(mod)
+
+  function() {
+    fitted + sample(resid)
+  }
+} 
+
+#Because they are evaluated when the function is called, not residing inside the child function.
+```
+
+2 - Why might you formulate the Box-Cox transformation like this?
+
+```{r}
+boxcox3 <- function(x) {
+  function(lambda) {
+    if (lambda == 0) {
+      log(x)
+    } else {
+      (x ^ lambda - 1) / lambda
+    }
+  }  
+}
+
+#This way more values of lambda can be tested.
+```
+
+3 - Why don’t you need to worry that boot_permute() stores a copy of the data inside the function that it generates?
+
+```{r}
+boot_permute <- function(df, var) {
+  n <- nrow(df)
+  force(var)
+  
+  function() {
+    col <- df[[var]]
+    col[sample(n, replace = TRUE)]
+  }
+}
+
+boot_mtcars1 <- boot_permute(mtcars, "mpg")
+
+#only what's outside the child function is stored. So only n, var and df are stored.
+
+env_print(boot_mtcars1)
+```
+
+4 - How much time does ll_poisson2() save compared to ll_poisson1()? Use bench::mark() to see how much faster the optimisation occurs. How does changing the length of x change the results?
+
+```{r}
+ll_poisson1 <- function(x) {
+  n <- length(x)
+
+  function(lambda) {
+    log(lambda) * sum(x) - n * lambda - sum(lfactorial(x))
+  }
+}
+
+ll_poisson2 <- function(x) {
+  n <- length(x)
+  sum_x <- sum(x)
+  c <- sum(lfactorial(x))
+
+  function(lambda) {
+    log(lambda) * sum_x - n * lambda - c
+  }
+}
+
+x1 <- c(41, 30, 31, 38, 29, 24, 30, 29, 31, 38)
+x1 <- sample(x1, 10000, replace = TRUE)
+
+ll1 <- ll_poisson1(x1)
+ll2 <- ll_poisson2(x1)
+
+
+bench::mark(
+  optimise(ll1, c(0, 100), maximum = TRUE),
+  optimise(ll2, c(0, 100), maximum = TRUE),
+  iterations = 1000
+)
+
+#ll2 is faster and changing the size of x makes the difference more pronounced.
+```
+
+# Function factores + Functionals
+
+## Exercises
+
+1 - Which of the following commands is equivalent to with(x, f(z))?
+
+```{r}
+# a) x$f(x$z).
+# b) f(x$z).
+# c) x$f(z).
+# d) f(z).
+# e) It depends.
+
+#a is what happens if x and z are inside x and are called outside x.
+#b is what happens if f is in the global environment 
+#c is what happens if f is inside x and z in the global environment
+#d happens if none of the objects is inside x. 
+```
+
+2 - Compare and contrast the effects of env_bind() vs. attach() for the following code.
+
+```{r}
+funs <- list(
+  mean = function(x) mean(x, na.rm = TRUE),
+  sum = function(x) sum(x, na.rm = TRUE)
+)
+mean(c(1, 2, NA)) #base mean
+attach(funs)
+#> The following objects are masked from package:base:
+#> 
+#>     mean, sum
+
+mean(c(1, 2, NA)) #error because mean masks mean
+mean <- function(x) stop("Hi!")
+
+mean(c(1, 2, NA)) #new mean
+detach(funs)
+
+env_bind(globalenv(), !!!funs)
+
+mean(c(1, 2, NA)) #error because mean masks mean
+
+mean <- function(x) stop("Hi!") 
+
+mean(c(1, 2, NA)) #hi mean
+
+env_unbind(globalenv(), names(funs))
+
+mean(c(1, 2, NA)) #base mean. Apparently it also unboud hi mean.
+
+?env_unbind
+```
+

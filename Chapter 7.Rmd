@@ -1,0 +1,253 @@
+---
+title: "Chapter 7"
+author: "Jorge Mendes"
+date: "20/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 7
+
+```{r}
+library(rlang)
+```
+
+# Quiz
+
+5 - How are <- and <<- different?
+
+```{r}
+#<- assigns in the environment it was called, <<- assigns in the global environment.
+```
+
+# Environment basics
+
+1- List three ways in which an environment differs from a list.
+
+```{r}
+#They're not ordered
+#They always have a parent (except empty environment)
+#They're not copied when modified
+```
+
+2 - Create an environment as illustrated by this picture.
+
+```{r}
+loop <- env()
+loop$loop <- loop
+
+env_print(loop)
+```
+3 - Create a pair of environments as illustrated by this picture.
+
+```{r}
+loop <- env()
+dedoop <- env()
+
+loop$loop <- dedoop
+dedoop$dedoop <- loop
+
+env_print(dedoop)
+env_print(loop)
+```
+
+4 - Explain why e[[1]] and e[c("a", "b")] don’t make sense when e is an environment.
+
+```{r}
+#e[[1]] doesn't make sense because environments are not ordered
+#e[c("a","b")] doesn't work because [ doesn't work with assignments.
+```
+
+5 - Create a version of env_poke() that will only bind new names, never re-bind old names. Some programming languages only do this, and are known as single assignment languages.
+
+```{r}
+new_env_poke <- function(env = caller_env(), nm, value, inherit = FALSE, create = !inherit){
+  
+  if(env_has(env, nm)) stop("Only new names are accepted in this function.")
+  
+  env_poke(env, nm, value, inherit, create)
+}
+
+e3 <- env(x = 1, y = 2)
+env_poke(e3, "a", 100)
+env_print(e3)
+
+new_env_poke(e3, "a", 200)
+new_env_poke(e3, "b", 200)
+env_print(e3)
+
+```
+
+6 - What does this function do? How does it differ from <<- and why might you prefer it?
+
+```{r}
+rebind <- function(name, value, env = caller_env()) {
+  if (identical(env, empty_env())) {
+    stop("Can't find `", name, "`", call. = FALSE)
+  } else if (env_has(env, name)) {
+    env_poke(env, name, value)
+  } else {
+    rebind(name, value, env_parent(env))
+  }
+}
+rebind("a", 10)
+#> Error: Can't find `a`
+a <- 5
+rebind("a", 10)
+a
+#> [1] 10
+
+#it change the value bound to a name. It differs from `<<- ` because it only rebinds, while <<- defaults to crating a variable in the global environment if an object is not found. It is preferable because it only does rebinding. 
+```
+
+# Recursing over environments
+
+## Exercises
+
+1 - Modify where() to return all environments that contain a binding for name. Carefully think through what type of object the function will need to return.
+
+```{r}
+where <- function(name, env = caller_env()) {
+  if (identical(env, empty_env())) {
+    # Base case
+    stop("Can't find ", name, call. = FALSE)
+  } else if (env_has(env, name)) {
+    # Success case
+    env
+  } else {
+    # Recursive case
+    where(name, env_parent(env))
+  }
+}
+
+where("mean")
+
+e4a <- env(empty_env(), a = 1, b = 2)
+e4b <- env(e4a, x = 10, a = 11)
+
+where("a", e4b)
+
+
+all_where <- function(name, env = caller_env(), env_list = list()) {
+  if (identical(env, empty_env())) {
+    # Base case
+    if(!length(env_list)) stop("Can't find ", name, call. = FALSE)
+    env_list
+  } else if (env_has(env, name)) {
+    # Success case (also recursive)
+    env_list <- append(env_list, env)
+    all_where(name, env_parent(env), env_list)
+  } else {
+    # Recursive case
+    all_where(name, env_parent(env), env_list)
+  }
+}
+
+all_where("c", e4b)
+all_where("mean")
+
+
+```
+
+2 - Write a function called fget() that finds only function objects. It should have two arguments, name and env, and should obey the regular scoping rules for functions: if there’s an object with a matching name that’s not a function, look in the parent. For an added challenge, also add an inherits argument which controls whether the function recurses up the parents or only looks in one environment.
+
+```{r}
+fget <- function(name, env = caller_env(), inherits = TRUE) {
+  if (identical(env, empty_env())) {
+    # Base case
+    stop("Can't find function ", name, call. = FALSE)
+  } else if (env_has(env, name) & is.function(env[[name]])) {
+    # Success case
+    env
+  } else if (inherits){
+    # Recursive case
+    fget(name, env_parent(env))
+  } else {
+    stop("Can't find function ", name, call. = FALSE)
+  }
+}
+
+# debug(fget)
+mean <- 3
+fget("mean") #expects namespace:base
+fget("mean", inherits = FALSE) #expects error since mean is not a function in the caller environment
+fget("a", e4b) #expects error since a is not a function
+
+```
+
+# Special environments
+
+## Exercises
+
+1 - How is search_envs() different from env_parents(global_env())?
+
+```{r}
+?search_envs
+search_envs()
+
+?env_parents
+env_parents(global_env())
+
+#search_envs gets the search path, which includes the global environment but not the final empty environment. envs_parents gets all the way above the global environment, excluding it and including the empty environment.
+```
+
+2 - Draw a diagram that shows the enclosing environments of this function:
+
+```{r}
+f1 <- function(x1) {
+  f2 <- function(x2) {
+    f3 <- function(x3) {
+      x1 + x2 + x3
+    }
+    f3(3)
+  }
+  f2(2)
+}
+f1(1)
+
+#I refuse.
+```
+
+3 - Write an enhanced version of str() that provides more information about functions. Show where the function was found and what environment it was defined in.
+
+```{r}
+str(median)
+
+improved_str <- function(fn){
+  str(fn)
+  cat("The function was defined in: ")
+  print(fn_env(fn))
+  
+  cat("The function was found in: ")
+  print(fget(as.character(substitute(fn))))
+}
+
+improved_str(sum)
+```
+
+# Call stacks
+
+## Exercises
+
+1 - Write a function that lists all the variables defined in the environment in which it was called. It should return the same results as ls().
+
+```{r}
+local_ls <- function(env=caller_env()){
+  env_names(env)
+}
+
+local_ls()
+ls()
+
+test <- function(){
+  a1 <- 1
+  b2 <- 2
+  local_ls()
+}
+
+test()
+```
+

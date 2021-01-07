@@ -1,0 +1,344 @@
+---
+title: "Chapter 2"
+author: "Jorge Mendes"
+date: "05/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 3
+
+```{r}
+set.seed(1014)
+library(lobstr)
+library(bench)
+```
+
+## Quiz 
+
+1 - What are the four common types of atomic vectors? What are the two rare types
+
+```{r}
+#Double, character, logical and integer
+```
+
+2 - What are attributes? How do you get them and set them?
+
+
+```{r}
+#Additional data in objects.
+```
+
+3 - How is a list different from an atomic vector? How is a matrix different from a data frame?
+
+```{r}
+#Lists can have multiple types inside it
+#All elements in a matrix must be of the same type, in data frame this constraint is only in the columns
+```
+
+4 - Can you have a list that is a matrix? Can a data frame have a column that is a matrix?
+
+```{r}
+#Yes, adding a dim attribute.
+#Yes, just have to make sure that the number of rows is the same of the data frame.
+```
+
+5 - How do tibbles behave differently from data frames?
+
+```{r}
+#Printing, not turn characters into factors, lazy evaluation and only recycles individual values
+```
+
+# Atomic vectors
+
+## Exercises
+
+1 - How do you create raw and complex scalars? (See ?raw and ?complex.)
+
+```{r}
+#Raw with as.raw() or charToRaw()
+#Complex are created using i, complex() or as.complex()
+```
+
+2 - Test your knowledge of the vector coercion rules by predicting the output of the following uses of c():
+
+```{r}
+c(1, FALSE)
+c("a", 1)
+c(TRUE, 1L)
+
+#got the 33 right
+```
+
+3 - Why is 1 == "1" true? Why is -1 < FALSE true? Why is "one" < 2 false?
+
+```{r}
+1 == "1" #coerced correctly either way
+
+-1 < FALSE #False coerced to numeric (0)
+
+"one" < 2 #2 is converted to string and string comparison is confusing 
+```
+
+4 - Why is the default missing value, NA, a logical vector? What’s special about logical vectors? (Hint: think about c(FALSE, NA_character_).)
+
+```{r}
+c(FALSE, NA_character_)
+
+?Comparison
+#So it is last in the coercion order.
+```
+5 - Precisely what do is.atomic(), is.numeric(), and is.vector() test for?
+
+```{r}
+?is.atomic
+#is.atomic tests for the atomic types, not necessarily vectors.
+
+is.atomic(matrix(c(1:10), 2)) #is true
+
+?is.numeric
+#more restrictive than is.double and is.integer. Vector needs to be a format that performs common operations. So factor, for example, are excluded.
+
+?is.vector
+#is.vector tests if an object has no attribute other than name. 
+
+is.vector(expression(1)) #an expression is considered a vector but a factor, for example, is not because it has other attributes.
+```
+
+# Attributes
+
+## Exercises
+
+1 - How is setNames() implemented? How is unname() implemented? Read the source code.
+
+```{r}
+setNames
+
+#from the code and documentation it's a shortcut for using names(object) <- names
+
+unname
+
+#turns the names attribute into NULL
+```
+
+2 - What does dim() return when applied to a 1-dimensional vector? When might you use NROW() or NCOL()?
+
+```{r}
+dim(1:10) #NULL
+
+nrow(1:10) #NULL
+
+ncol(1:10) #NULL
+
+dim
+nrow
+
+#nrow and ncol call dim, which calls a primite function
+```
+
+3 - How would you describe the following three objects? What makes them different from 1:5?
+
+```{r}
+x1 <- array(1:5, c(1, 1, 5))
+x2 <- array(1:5, c(1, 5, 1))
+x3 <- array(1:5, c(5, 1, 1))
+
+x1
+x2
+x3
+
+attributes(x1)
+
+#they have a dim attribute that change their behaviour compared to a vector.
+```
+4 - An early draft used this code to illustrate structure():
+
+```{r}
+structure(1:5, comment = "my attribute")
+```
+
+But when you print that object you don’t see the comment attribute. Why? Is the attribute missing, or is there something else special about it? (Hint: try using help.)
+
+```{r}
+?structure
+
+x_structure <- structure(1:5, comment = "my attribute")
+
+x_structure
+attributes(x_structure)
+
+?print.default
+?comment
+
+?attributes
+
+#comment attribute is not printed by default.
+```
+
+# S3 atomic vectors
+
+## Exercises
+
+1 - What sort of object does table() return? What is its type? What attributes does it have? How does the dimensionality change as you tabulate more variables?
+
+```{r}
+?table
+
+#An object of class table. An integer array.
+
+test_table <- table(letters)
+
+typeof(test_table)
+attributes(test_table)
+
+#attributes dim, dimnames and class
+
+attr(table(ggplot2::diamonds[c("cut", "color")]), "dim")
+attr(table(ggplot2::diamonds[c("cut", "color", "clarity")]), "dim")
+
+#dimensions are the number of unique factors
+```
+
+2 - What happens to a factor when you modify its levels?
+
+```{r}
+f1 <- factor(letters)
+tracemem(f1)
+levels(f1) <- rev(levels(f1))
+
+f1
+as.numeric(f1)
+
+#the integer associated with the labels change
+```
+
+3 - What does this code do? How do f2 and f3 differ from f1?
+
+```{r}
+f2 <- rev(factor(letters))
+f2
+as.integer(f2)
+
+f3 <- factor(letters, levels = rev(letters))
+f3
+as.integer(f3)
+
+#f2 and f3 have the same integer makeup underneath but the levels have a different order. f1 has the same level order as f3 but with a different integer built.
+
+identical(as.integer(f3), as.integer(f2))
+identical(as.integer(f3), as.integer(f1))
+
+
+identical(levels(f3), levels(f1))
+identical(levels(f2), levels(f1))
+```
+
+# Lists
+
+## Exercises
+
+1 - List all the ways that a list differs from an atomic vector.
+
+```{r}
+#Lists are recursive, elements can be of different types, lists contain references to objects (while vectors have one reference).
+```
+
+2 - Why do you need to use unlist() to convert a list to an atomic vector? Why doesn’t as.vector() work?
+
+```{r}
+test_list <- list(1:10, 20, 5.3)
+
+test_list
+
+as.vector(test_list)
+is.vector(test_list) #already is a vector
+#as.vector makes it atomic
+
+?unlist
+#unlist gets the values recursively and does the correct testing to get the final vector in a correct format.
+
+test_vector <- unlist(test_list)
+
+typeof(test_vector)
+lapply(test_list, typeof)
+
+```
+
+3 - Compare and contrast c() and unlist() when combining a date and date-time into a single vector.
+
+```{r}
+today <- Sys.Date()
+time_now <- Sys.time()
+
+c(today, time_now)
+c(time_now, today)
+#c converts for the type of the first element
+
+unlist(list(today, time_now))
+unlist(list(time_now, today))
+#unlist gets the double underneath the values
+```
+
+# Data frames and tibbles
+
+# Exercises
+
+1 - Can you have a data frame with zero rows? What about zero columns?
+
+```{r}
+test_df <- data.frame(NULL)
+
+attributes(test_df)
+
+dim(test_df)
+
+#yes
+```
+
+2 - What happens if you attempt to set rownames that are not unique?
+
+```{r}
+test_df <- data.frame(x = c(1, 2),
+                      y = c(3, 4),
+                      row.names = c("a", "a"))
+
+#error message
+```
+
+3 - If df is a data frame, what can you say about t(df), and t(t(df))? Perform some experiments, making sure to try different column types.
+
+```{r}
+test_df <- data.frame(x = c(1, 2),
+                      y = c(3, 4))
+t(test_df)
+class(t(test_df)) #converted to matrix
+
+t(t(test_df))
+class(t(t(test_df))) #converted to matrix
+
+test_df <- data.frame(x = c("a", "b"),
+                      y = c(3, 4))
+
+t(test_df) #character matrix
+class(t(test_df)) #converted to matrix
+
+t(t(test_df)) #character matrix
+class(t(t(test_df))) #converted to matrix
+
+?t
+#t() and t(t()) return a matrix. Coercion may happen.
+```
+
+4 - What does as.matrix() do when applied to a data frame with columns of different types? How does it differ from data.matrix()?
+
+```{r}
+?as.matrix
+#Values will be coerced according to R coercion hierarchy.
+
+?data.matrix
+#data.matrix prioritizes numerical result, coercing dates and factor to numerical. as.matrix prioritize character for these classes, as usual with base R.
+```
+

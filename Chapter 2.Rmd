@@ -1,0 +1,328 @@
+---
+title: "Chapter 2"
+author: "Jorge Mendes"
+date: "05/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 2
+
+```{r}
+set.seed(1014)
+library(lobstr)
+library(bench)
+```
+
+## Quiz 
+
+1 - Given the following data frame, how do I create a new column called “3” that contains the sum of 1 and 2? You may only use $, not [[. What makes 1, 2, and 3 challenging as variable names?
+
+```{r}
+df <- data.frame(runif(3), runif(3))
+names(df) <- c(1, 2)
+
+df$`3` <- df$`1` + df$`2`
+df
+
+#R treats the numbers as, well, numbers. And not as text
+```
+
+2 - In the following code, how much memory does y occupy?
+
+```{r}
+x <- runif(1e6)
+y <- list(x, x, x)
+
+obj_size(y)
+```
+
+3 - On which line does a get copied in the following example?
+
+```{r}
+a <- c(1, 5, 3, 2)
+b <- a
+b[[1]] <- 10
+
+#in the third line, when b is called
+```
+
+## Binding basics
+
+### Exercises
+
+1 - Explain the relationship between a, b, c and d in the following code:
+
+```{r}
+a <- 1:10
+b <- a
+c <- b
+d <- 1:10
+
+obj_addrs(list(a, b, c, d))
+#a, b and c refer to the same object, created in the call for a
+#d refers to other object with the same elements as a, b and c
+```
+
+2 - The following code accesses the mean function in multiple ways. Do they all point to the same underlying function object? Verify this with lobstr::obj_addr().
+
+```{r}
+mean
+base::mean
+get("mean")
+evalq(mean)
+match.fun("mean")
+
+obj_addrs(list(mean,
+base::mean,
+get("mean"),
+evalq(mean),
+match.fun("mean")))
+
+#yes, they refer to the same function
+```
+3 - By default, base R data import functions, like read.csv(), will automatically convert non-syntactic names to syntactic ones. Why might this be problematic? What option allows you to suppress this behaviour?
+
+```{r}
+?read.csv
+
+#This might be problematic because makes the analysis more difficult to someone used to the table's name and it could make the names lose meaning.
+#check.names and the function make.names controls if and how the names are checked. col.names is also useful, giving the option to provide the names directly.
+```
+
+4 - What rules does make.names() use to convert non-syntactic names into syntactic ones?
+
+```{r}
+?make.names
+
+#The character "X" is prepended if necessary. All invalid characters are translated to ".". A missing value is translated to "NA". Names which match R keywords have a dot appended to them. Duplicated values are altered by make.unique.
+#make.unique appends .\d to the name.
+```
+
+5 - I slightly simplified the rules that govern syntactic names. Why is .123e1 not a syntactic name? Read ?make.names for the full details.
+
+```{r}
+?make.names
+
+# .123e1 is not syntactic because it's a dot followed by a number. Names starting with a dot are only syntactic if followed by a letter.
+```
+
+## Copy-on-modify
+
+### Exercises
+
+1 - Why is `tracemem(1:10)` not useful?
+
+```{r}
+tracemem(1:10)
+
+c(tracemem(1:10), tracemem(1:10))
+
+#Because there is no name bound to the object. It is recreated every time with a new address when the function is called.
+```
+
+2 - Explain why tracemem() shows two copies when you run this code. Hint: carefully look at the difference between this code and the code shown earlier in the section.
+
+```{r}
+x <- c(1L, 2L, 3L)
+tracemem(x)
+
+x[[3]] <- 4
+
+#Because it makes a copy to change the object class to numeric, original is a vector of type integer, and then change the value of this copy.
+```
+
+3 - Sketch out the relationship between the following objects:
+
+```{r}
+a <- 1:10
+b <- list(a, a)
+c <- list(b, a, 1:10)
+
+ref(a, b, c)
+#a -- vector object a
+#b -- references a vector object a, references a vector object a
+#c -- references b (references a vector object a, references a vector object a), vector object a, vector object c
+```
+
+4 - What happens when you run this code?
+
+```{r}
+x <- list(1:10)
+ref(x)
+x[[2]] <- x
+ref(x)
+
+# x 
+```
+
+# Object size
+
+## Exercises
+
+1 - In the following example, why are object.size(y) and obj_size(y) so radically different? Consult the documentation of object.size().
+
+```{r}
+y <- rep(list(runif(1e4)), 100)
+
+object.size(y)
+#> 8005648 bytes
+obj_size(y)
+#> 80,896 B
+
+?object.size
+
+#object.size doesn't take into account the shared elements in the list. Which makes a huge difference with this object, which has a hundred times the same list.
+```
+
+2 - Take the following list. Why is its size somewhat misleading?
+
+```{r}
+funs <- list(mean, sd, var)
+obj_size(funs)
+#> 17,608 B
+
+#because it is the size of the function object and not how much the operation would take from memory or of the object returned but it.
+```
+
+3 - Predict the output of the following code:
+
+```{r}
+a <- runif(1e6)
+obj_size(a)
+
+b <- list(a, a)
+obj_size(b)
+obj_size(a, b)
+#b is a + list with two elements
+obj_size(a, list(NULL, NULL))
+#a + b is the size of object b
+
+b[[1]][[1]] <- 10
+obj_size(b)
+obj_size(a, b)
+#b is larger because has a new reference for the first element
+#a+b is still b because has the reference to a in the second element
+
+b[[2]][[1]] <- 10
+obj_size(b)
+obj_size(a, b)
+#b is the same size but none of the vectors references a anymore
+#a+b is now the size of a + size of b
+```
+
+## Modify in place
+
+### Exercises
+
+1 - Explain why the following code doesn’t create a circular list.
+
+```{r}
+x <- list()
+x[[1]] <- x
+
+ref(x)
+#first is created a copy of the original list, then another object is created, which refers to the original list as the first object.
+```
+
+2 - Wrap the two methods for subtracting medians into two functions, then use the ‘bench’ package (Hester 2018) to carefully compare their speeds. How does performance change as the number of columns increase?
+```{r}
+create_df <- function(cols) {
+  data.frame(matrix(runif(cols * 1000), ncol = cols))
+}
+
+median_benchmark <- bench::press(
+  cols = c(10, 100, 1000),
+  {
+    dat <- create_df(cols)
+    medians <- vapply(dat, median, numeric(1))
+    
+    median_test <- function(x, medians){
+      for (i in 1:5) {
+        x[[i]] <- x[[i]] - medians[[i]]
+      }
+      x
+    }
+    
+    bench::mark(
+      `Data Frame` = median_test(dat, medians),
+      List = as.data.frame(median_test(as.list(dat), medians))
+    )
+  }
+)
+
+median_benchmark
+
+ggplot2::autoplot(median_benchmark)
+#List method scales much better but if the result needs to be delivered in a data frame the transformation needs to be optimized.
+```
+
+```{r}
+create_random_df <- function(nrow, ncol) {
+  random_matrix <- matrix(runif(nrow * ncol), nrow = nrow)
+  as.data.frame(random_matrix)
+}
+
+subtract_medians <- function(x, medians){
+  for (i in seq_along(medians)) {
+    x[[i]] <- x[[i]] - medians[[i]]
+  }
+  x
+}
+
+subtract_medians_l <- function(x, medians){
+  x <- as.list(x)
+  x <- subtract_medians(x, medians)
+  as.data.frame(x)
+}
+
+compare_speed <- function(ncol){
+  df_input   <- create_random_df(nrow = 1e4, ncol = ncol)
+  medians <- vapply(df_input, median, numeric(1))
+
+  bench::mark(`Data Frame` = subtract_medians(df_input,   medians),
+              List = as.data.frame(subtract_medians(as.list(df_input), medians)))
+}
+
+results <- bench::press(
+  ncol = c(1, 5, 10, 50, 100, 200, 400, 600, 800, 1000),
+  compare_speed(ncol)
+)
+
+library(ggplot2)
+ggplot(results, aes(ncol, median, col = names(expression))) +
+  geom_point(size = 2) + 
+  geom_smooth() +
+  labs(x = "Number of Columns of Input Data",
+       y = "Computation Time",
+       color = "Input Data Structure",
+       title = "Benchmark: Median Subtraction")
+
+#Apparently data.frame is faster. Mayb the overhead created by as.data.frame and as.list is too large.
+```
+
+3 - What happens if you attempt to use tracemem() on an environment?
+
+```{r}
+test_env <- new.env()
+tracemem(test_env)
+
+#Error because tracemem is not useful for environments.
+?median
+
+
+library(lobstr)
+
+
+x <- iris
+tracemem(x)
+debugonce(`[`)
+x[[1]] <- x[[1]] + 3
+
+x
+
+```
+

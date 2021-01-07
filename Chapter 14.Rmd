@@ -1,0 +1,68 @@
+---
+title: "Chapter 10"
+author: "Jorge Mendes"
+date: "20/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(R6)
+```
+
+
+# Chapter 14
+
+# Classes and Methods
+
+## Exercises
+
+1 - Create a bank account class that prevents you from directly setting the account balance, but you can still withdraw from and deposit to. Throw an error if you attempt to go into overdraft.
+
+```{r}
+Account <- R6Class("Account", 
+  private = list(
+    .balance = 0
+  ),
+  active = list(
+    balance = function(value) {
+      if (missing(value)) {
+        private$.balance
+      } else {
+        stop("`$balance` is read only", call. = FALSE)
+      }
+    }
+  ),
+  public = list(
+    deposit = function(value){
+      private$.balance <- private$.balance + value
+      invisible(self)
+    },
+    withdraw = function(value){
+      private$.balance <- private$.balance - value
+      invisible(self)
+    }
+  )
+)
+
+my_account <- Account$new()
+my_account$balance
+
+my_account$deposit(10)$deposit(5)
+my_account$balance
+
+my_account$withdraw(20)
+my_account$balance
+```
+
+2 - Create an R6 class that represents a shuffled deck of cards. You should be able to draw cards from the deck with `$`draw(n), and return all cards to the deck and reshuffle with $reshuffle(). Use the following code to make a vector of cards.
+
+```{r}
+suit <- c("♠", "♥", "♦", "♣")
+value <- c("A", 2:10, "J", "Q", "K")
+cards <- paste0(rep(value, 4), suit)
+```
+
